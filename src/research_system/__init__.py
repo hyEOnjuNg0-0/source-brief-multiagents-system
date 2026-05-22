@@ -21,6 +21,7 @@ from research_system.orchestrator import (
     ResearchOrchestrator,
     default_research_tools,
 )
+from research_system.openai_backend import OpenAIResponsesClient
 from research_system.quality import ResearchQualityError, validate_mvp_quality
 from research_system.schemas import (
     AgentMemoryItem,
@@ -86,6 +87,7 @@ __all__ = [
     "OrchestratorResult",
     "PlannerOutput",
     "PlannerAgent",
+    "OpenAIResponsesClient",
     "QualityIssue",
     "QualityIssueType",
     "QualityReview",

@@ -87,6 +87,8 @@ def run_cli(
         except (AttributeError, ImportError, ValueError) as exc:
             print(f"Could not load LLM client {args.llm_client!r}: {exc}", file=err)
             return 2
+    elif os.environ.get("OPENAI_API_KEY"):
+        configure_llm_client(_load_llm_backend("openai"))
 
     orchestrator = orchestrator_factory(output_root=Path(args.output_root))
 
@@ -124,6 +126,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _load_llm_backend(spec: str):
+    if spec in {"openai", "openai-responses", "openai_responses"}:
+        from research_system.openai_backend import create_default_client
+
+        return create_default_client()
+
     module_name, separator, attribute_path = spec.partition(":")
     if not separator or not module_name or not attribute_path:
         raise ValueError("expected format module:attribute")
