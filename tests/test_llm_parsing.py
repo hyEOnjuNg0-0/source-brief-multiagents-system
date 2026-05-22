@@ -53,6 +53,48 @@ def test_ask_llm_json_retries_after_bad_json():
     assert output.count == 2
 
 
+def test_ask_llm_json_retry_prompt_rejects_tool_argument_shape():
+    prompts: list[str] = []
+    responses = iter(
+        [
+            '{"query": "site:example.org evidence"}',
+            '{"title": "최종", "count": 1}',
+        ]
+    )
+
+    def client(prompt: str) -> str:
+        prompts.append(prompt)
+        return next(responses)
+
+    configure_llm_client(client)
+
+    output = ask_llm_json("return json", ExampleOutput, max_attempts=2)
+
+    assert output.count == 1
+    assert "standalone tool call" in prompts[1]
+    assert '{"query": "..."}' in prompts[1]
+
+
+def test_ask_llm_json_uses_structured_client_when_available():
+    seen: dict[str, object] = {}
+
+    class Client:
+        def complete_structured(self, prompt: str, model_type: type[SchemaModel]) -> str:
+            seen["prompt"] = prompt
+            seen["model_type"] = model_type
+            return '{"title": "구조화", "count": 4}'
+
+        def complete(self, prompt: str) -> str:
+            raise AssertionError("complete should not be used for structured output")
+
+    configure_llm_client(Client())
+
+    output = ask_llm_json("return json", ExampleOutput)
+
+    assert output.count == 4
+    assert seen == {"prompt": "return json", "model_type": ExampleOutput}
+
+
 def test_ask_llm_json_reports_validation_fields():
     configure_llm_client(lambda prompt: '{"title": "조사"}')
 

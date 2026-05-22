@@ -16,6 +16,11 @@ class LLMClient(Protocol):
         ...
 
 
+class StructuredLLMClient(Protocol):
+    def complete_structured(self, prompt: str, model_type: type[BaseModel]) -> str:
+        ...
+
+
 class LLMError(RuntimeError):
     """Base error for LLM call and response handling."""
 
@@ -59,7 +64,11 @@ def reset_llm_client() -> None:
     _client = None
 
 
-def ask_llm(prompt: str) -> str:
+def ask_llm(
+    prompt: str,
+    *,
+    output_model: type[BaseModel] | None = None,
+) -> str:
     if not prompt.strip():
         raise ValueError("prompt must not be empty")
     if _client is None:
@@ -67,8 +76,11 @@ def ask_llm(prompt: str) -> str:
             "No LLM client configured. Call configure_llm_client(...) first."
         )
 
+    complete_structured = getattr(_client, "complete_structured", None)
     complete = getattr(_client, "complete", None)
-    if callable(complete):
+    if output_model is not None and callable(complete_structured):
+        response = complete_structured(prompt, output_model)
+    elif callable(complete):
         response = complete(prompt)
     elif callable(_client):
         response = _client(prompt)
@@ -94,7 +106,7 @@ def ask_llm_json(
     raw_response = ""
 
     for attempt in range(1, max_attempts + 1):
-        raw_response = ask_llm(current_prompt)
+        raw_response = ask_llm(current_prompt, output_model=model_type)
         try:
             payload = _parse_json_response(raw_response)
             return model_type.model_validate(payload)
@@ -165,7 +177,12 @@ def _retry_prompt(original_prompt: str, failure: str) -> str:
             original_prompt,
             "The previous response failed JSON validation.",
             failure,
-            "Return only valid JSON for the requested output contract.",
+            (
+                "Do not return a standalone tool call, search request, or "
+                "helper object such as {\"query\": \"...\"}. Return one complete "
+                "JSON object for the requested output model with all required "
+                "fields."
+            ),
         ]
     )
 

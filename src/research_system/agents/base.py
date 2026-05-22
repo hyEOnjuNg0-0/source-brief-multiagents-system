@@ -67,7 +67,18 @@ class Agent(Generic[OutputT]):
             parts.extend(["## Context", self._serialize_context(context)])
 
         if self.tools:
-            parts.extend(["## Available Tools", self._serialize_tools()])
+            parts.extend(
+                [
+                    "## Available Tools",
+                    self._serialize_tools(),
+                    (
+                        "The runtime may pre-run tools and place their results "
+                        "in the task payload. Do not return tool-call arguments "
+                        "or standalone helper JSON such as {\"query\": \"...\"}. "
+                        "Return only the requested output contract."
+                    ),
+                ]
+            )
 
         if self.memory:
             parts.extend(["## Short Memory", self._serialize_memory()])

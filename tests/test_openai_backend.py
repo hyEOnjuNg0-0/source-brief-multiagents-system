@@ -7,6 +7,12 @@ import pytest
 from research_system.cli import _load_llm_backend
 from research_system.llm import LLMConfigurationError
 from research_system.openai_backend import OpenAIResponsesClient
+from research_system.schemas import SchemaModel
+
+
+class ExampleOutput(SchemaModel):
+    title: str
+    count: int
 
 
 class FakeResponses:
@@ -40,6 +46,19 @@ def test_openai_responses_client_uses_high_reasoning_and_json_mode():
         },
         "max_output_tokens": 123,
     }
+
+
+def test_openai_responses_client_can_request_json_schema_format():
+    responses = FakeResponses()
+    fake_client = SimpleNamespace(responses=responses)
+    client = OpenAIResponsesClient(model="gpt-test", client=fake_client)
+
+    assert client.complete_structured("Return JSON.", ExampleOutput) == '{"ok": true}'
+
+    text_format = responses.last_request["text"]["format"]
+    assert text_format["type"] == "json_schema"
+    assert text_format["json_schema"]["name"] == "ExampleOutput"
+    assert text_format["json_schema"]["schema"]["title"] == "ExampleOutput"
 
 
 def test_openai_backend_reads_environment(monkeypatch):

@@ -32,4 +32,7 @@ Quality bar:
 - Do not overstate weak evidence or isolated criticism.
 - `handoff_notes` should tell the critic, verifier, and synthesizer how strongly
   the risk evidence should be weighted.
+- Do not return a standalone search query or tool-call request. If more evidence
+  is needed, record the gap in `unknowns` or `handoff_notes` while still
+  returning a complete ResearcherOutput.
 - Return only JSON that matches ResearcherOutput.

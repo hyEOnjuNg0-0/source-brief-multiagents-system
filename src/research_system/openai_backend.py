@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from pydantic import BaseModel
+
 from research_system.llm import LLMConfigurationError, LLMResponseError
 
 
@@ -52,6 +54,22 @@ class OpenAIResponsesClient:
             raise LLMResponseError("OpenAI response did not include output text.")
         return text
 
+    def complete_structured(
+        self,
+        prompt: str,
+        output_model: type[BaseModel],
+    ) -> str:
+        if not prompt.strip():
+            raise ValueError("prompt must not be empty")
+
+        response = self._openai_client().responses.create(
+            **self._request(prompt, output_model=output_model)
+        )
+        text = _response_text(response)
+        if not text.strip():
+            raise LLMResponseError("OpenAI response did not include output text.")
+        return text
+
     def _openai_client(self) -> Any:
         if self._client is not None:
             return self._client
@@ -70,13 +88,18 @@ class OpenAIResponsesClient:
         self._client = OpenAI(**kwargs)
         return self._client
 
-    def _request(self, prompt: str) -> dict[str, Any]:
+    def _request(
+        self,
+        prompt: str,
+        *,
+        output_model: type[BaseModel] | None = None,
+    ) -> dict[str, Any]:
         request: dict[str, Any] = {
             "model": self.model,
             "input": prompt,
             "reasoning": {"effort": self.reasoning_effort},
             "text": {
-                "format": {"type": "json_object"},
+                "format": _response_format(output_model),
                 "verbosity": self.verbosity,
             },
         }
@@ -87,6 +110,30 @@ class OpenAIResponsesClient:
 
 def create_default_client() -> OpenAIResponsesClient:
     return OpenAIResponsesClient()
+
+
+def _response_format(output_model: type[BaseModel] | None) -> dict[str, Any]:
+    if output_model is None:
+        return {"type": "json_object"}
+
+    name = _schema_name(output_model)
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": name,
+            "description": f"JSON object that validates as {name}.",
+            "schema": output_model.model_json_schema(),
+            "strict": False,
+        },
+    }
+
+
+def _schema_name(output_model: type[BaseModel]) -> str:
+    name = "".join(
+        char if char.isalnum() or char in {"_", "-"} else "_"
+        for char in output_model.__name__
+    ).strip("_")
+    return (name or "StructuredOutput")[:64]
 
 
 def _response_text(response: Any) -> str:

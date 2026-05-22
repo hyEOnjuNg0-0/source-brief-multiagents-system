@@ -33,4 +33,7 @@ Quality bar:
 - Every note must cite one or more source IDs that exist in `sources`.
 - `handoff_notes` should tell the critic, verifier, or synthesizer what still
   needs corroboration outside official material.
+- Do not return a standalone search query or tool-call request. If more evidence
+  is needed, record the gap in `unknowns` or `handoff_notes` while still
+  returning a complete ResearcherOutput.
 - Return only JSON that matches ResearcherOutput.
