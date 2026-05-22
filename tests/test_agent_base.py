@@ -69,6 +69,8 @@ def test_agent_run_builds_prompt_validates_output_and_updates_memory(tmp_path: P
     assert '"name": "ExampleAgent"' in str(seen["prompt"])
     assert '"topic": "source-based research"' in str(seen["prompt"])
     assert '"name": "dummy_tool"' in str(seen["prompt"])
+    assert '"properties"' in str(seen["prompt"])
+    assert '"count"' in str(seen["prompt"])
     assert agent.memory[0].content == "Completed task task_001"
 
 

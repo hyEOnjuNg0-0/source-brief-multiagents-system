@@ -36,4 +36,9 @@ Quality bar:
 - Researcher assignment focuses must be distinct from each other.
 - Include handoff notes when a section, timeframe, or source class needs special
   care.
-- Return only JSON that matches PlannerOutput.
+- Return only JSON that matches PlannerOutput. The top-level object must contain
+  `plan`, with optional `assumptions`, `missing_inputs`, and `handoff_notes`.
+  Put the research target inside `plan.research_scope`, the final briefing shape
+  inside `plan.briefing_sections`, and researcher lanes inside
+  `plan.research_assignments`. Do not create separate top-level keys such as
+  `research_target`, `final_briefing_shape`, or `researcher_assignments`.

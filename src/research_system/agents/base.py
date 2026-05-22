@@ -76,6 +76,13 @@ class Agent(Generic[OutputT]):
             [
                 "## Output Contract",
                 f"Return JSON that validates as {self.output_model.__name__}.",
+                "Use exactly the property names from this schema. Do not add "
+                "top-level fields that are not allowed by the schema.",
+                json.dumps(
+                    self.output_model.model_json_schema(),
+                    ensure_ascii=False,
+                    indent=2,
+                ),
             ]
         )
 
