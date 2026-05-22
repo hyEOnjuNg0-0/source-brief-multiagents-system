@@ -3,6 +3,7 @@
 from research_system.agents.critic import CriticAgent
 from research_system.agents.planner import PlannerAgent
 from research_system.agents.researcher import ResearcherAgent, create_default_researchers
+from research_system.agents.synthesizer import SynthesizerAgent, briefing_to_markdown
 from research_system.agents.verifier import VerifierAgent
 from research_system.context import AgentContext
 from research_system.llm import (
@@ -90,6 +91,7 @@ __all__ = [
     "ResearcherOutput",
     "ResearchScope",
     "SynthesizerOutput",
+    "SynthesizerAgent",
     "Source",
     "SourceType",
     "TimelineEvent",
@@ -100,6 +102,7 @@ __all__ = [
     "WebSearchTool",
     "ask_llm",
     "ask_llm_json",
+    "briefing_to_markdown",
     "configure_llm_client",
     "create_default_researchers",
     "reset_llm_client",
