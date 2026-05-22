@@ -6,6 +6,7 @@ from pathlib import Path
 
 from research_system.agents.base import Agent, StructuredLLM
 from research_system.context import AgentContext
+from research_system.quality import current_sensitive_fact_check_failures
 from research_system.schemas import (
     AgentRole,
     AgentTask,
@@ -151,10 +152,20 @@ def _write_briefing_outputs(
 
 
 def _validate_synthesizer_output(output: SynthesizerOutput) -> None:
+    failures: list[str] = []
     if not output.briefing.care_points and not output.unresolved_cautions:
-        raise ValueError("synthesizer output must include at least one care point")
+        failures.append("synthesizer output must include at least one care point")
     if not output.briefing.source_list:
-        raise ValueError("synthesizer output must include a source list")
+        failures.append("synthesizer output must include a source list")
+    if not output.briefing.timeline:
+        failures.append("synthesizer output must include a briefing timeline")
+
+    failures.extend(
+        current_sensitive_fact_check_failures(output.fact_checks, output.sources)
+    )
+
+    if failures:
+        raise ValueError("; ".join(failures))
 
 
 def _section_to_markdown(section: BriefingSection) -> list[str]:

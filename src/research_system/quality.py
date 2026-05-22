@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
+from datetime import date
 from typing import Any
 
 from research_system.schemas import (
     BriefingSection,
     BriefingSectionSpec,
     BriefingSectionType,
+    FactCheck,
+    FactCheckStatus,
     ResearcherOutput,
+    Source,
     SourceType,
     SynthesizerOutput,
 )
@@ -33,6 +37,27 @@ EXTERNAL_SOURCE_TYPES = {
     SourceType.SOCIAL_MEDIA,
 }
 CRITICAL_SOURCE_TYPES = {SourceType.CRITICAL_SOURCE}
+CURRENT_SENSITIVE_MAX_AGE_DAYS = 365
+CURRENT_SENSITIVE_KEYWORDS = (
+    "current",
+    "currently",
+    "latest",
+    "recent",
+    "recently",
+    "today",
+    "now",
+    "as of",
+    "up to date",
+    "up-to-date",
+    "this year",
+    "현재",
+    "최신",
+    "최근",
+    "오늘",
+    "지금",
+    "올해",
+    "동향",
+)
 
 
 def validate_mvp_quality(result: Any) -> None:
@@ -61,6 +86,40 @@ def validate_mvp_quality(result: Any) -> None:
         raise ResearchQualityError(
             "Research output failed MVP quality gates: " + "; ".join(failures)
         )
+
+
+def current_sensitive_fact_check_failures(
+    fact_checks: Sequence[FactCheck],
+    sources: Sequence[Source],
+    *,
+    today: date | None = None,
+) -> list[str]:
+    """Return failures for current-sensitive facts without fresh source support."""
+
+    effective_today = today or date.today()
+    sources_by_id = {source.id: source for source in sources}
+    failures: list[str] = []
+
+    for fact_check in fact_checks:
+        if not _is_current_sensitive(fact_check):
+            continue
+        stale_source_ids = [
+            source_id
+            for source_id in fact_check.source_ids
+            if _source_is_missing_or_stale(
+                sources_by_id.get(source_id),
+                today=effective_today,
+            )
+        ]
+        if stale_source_ids and fact_check.status != FactCheckStatus.NEEDS_CARE:
+            stale_list = ", ".join(sorted(stale_source_ids))
+            failures.append(
+                "current-sensitive fact checks with missing or stale source "
+                "dates must be marked needs_care "
+                f"({fact_check.item}: {stale_list})"
+            )
+
+    return failures
 
 
 def _validate_planner_sections(
@@ -141,6 +200,31 @@ def _validate_final_briefing(output: SynthesizerOutput) -> list[str]:
         failures.append("final briefing must include sources")
 
     return failures
+
+
+def _is_current_sensitive(fact_check: FactCheck) -> bool:
+    text = " ".join(
+        part
+        for part in (
+            fact_check.item,
+            fact_check.value,
+            fact_check.rationale,
+            fact_check.notes or "",
+        )
+        if part
+    ).lower()
+    return any(keyword in text for keyword in CURRENT_SENSITIVE_KEYWORDS)
+
+
+def _source_is_missing_or_stale(
+    source: Source | None,
+    *,
+    today: date,
+) -> bool:
+    if source is None or source.published_at is None:
+        return True
+    age_days = (today - source.published_at).days
+    return age_days > CURRENT_SENSITIVE_MAX_AGE_DAYS
 
 
 def _has_section(
