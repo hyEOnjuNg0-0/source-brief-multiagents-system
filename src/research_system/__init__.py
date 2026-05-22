@@ -1,5 +1,6 @@
 """Research system package."""
 
+from research_system.context import AgentContext
 from research_system.schemas import (
     AgentMemoryItem,
     AgentMessage,
@@ -34,6 +35,7 @@ from research_system.schemas import (
 )
 
 __all__ = [
+    "AgentContext",
     "AgentMemoryItem",
     "AgentMessage",
     "AgentMessageType",
