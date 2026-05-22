@@ -1,5 +1,6 @@
 """Research system package."""
 
+from research_system.agents.critic import CriticAgent
 from research_system.agents.planner import PlannerAgent
 from research_system.agents.researcher import ResearcherAgent, create_default_researchers
 from research_system.context import AgentContext
@@ -67,6 +68,7 @@ __all__ = [
     "BriefingSectionDraft",
     "BriefingSectionSpec",
     "BriefingSectionType",
+    "CriticAgent",
     "CriticOutput",
     "FactCheck",
     "FactCheckStatus",
