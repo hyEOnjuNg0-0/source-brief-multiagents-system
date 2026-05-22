@@ -1,6 +1,7 @@
 """Research system package."""
 
 from research_system.agents.planner import PlannerAgent
+from research_system.agents.researcher import ResearcherAgent, create_default_researchers
 from research_system.context import AgentContext
 from research_system.llm import (
     LLMConfigurationError,
@@ -80,6 +81,7 @@ __all__ = [
     "Reliability",
     "ResearchAssignment",
     "ResearchDepth",
+    "ResearcherAgent",
     "ResearchNote",
     "ResearchPlan",
     "ResearcherOutput",
@@ -95,6 +97,7 @@ __all__ = [
     "ask_llm",
     "ask_llm_json",
     "configure_llm_client",
+    "create_default_researchers",
     "reset_llm_client",
     "SaveArtifactTool",
     "structured_ask_llm",
