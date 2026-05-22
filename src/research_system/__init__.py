@@ -3,6 +3,7 @@
 from research_system.agents.critic import CriticAgent
 from research_system.agents.planner import PlannerAgent
 from research_system.agents.researcher import ResearcherAgent, create_default_researchers
+from research_system.agents.verifier import VerifierAgent
 from research_system.context import AgentContext
 from research_system.llm import (
     LLMConfigurationError,
@@ -94,6 +95,7 @@ __all__ = [
     "TimelineEvent",
     "Tool",
     "ToolExecutionError",
+    "VerifierAgent",
     "VerifierOutput",
     "WebSearchTool",
     "ask_llm",
