@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Sequence
 from datetime import date
 from typing import Any
@@ -213,7 +214,17 @@ def _is_current_sensitive(fact_check: FactCheck) -> bool:
         )
         if part
     ).lower()
-    return any(keyword in text for keyword in CURRENT_SENSITIVE_KEYWORDS)
+    return any(
+        _keyword_matches(text, keyword)
+        for keyword in CURRENT_SENSITIVE_KEYWORDS
+    )
+
+
+def _keyword_matches(text: str, keyword: str) -> bool:
+    if keyword.isascii():
+        pattern = rf"(?<![a-z0-9]){re.escape(keyword)}(?![a-z0-9])"
+        return re.search(pattern, text) is not None
+    return keyword in text
 
 
 def _source_is_missing_or_stale(

@@ -24,6 +24,13 @@ def _synthesizer_payload() -> dict:
                     "source_ids": ["source_001"],
                 }
             ],
+            "timeline": [
+                {
+                    "year": "2020",
+                    "event": "Artifact baseline event.",
+                    "source_ids": ["source_001"],
+                }
+            ],
             "key_points": ["Point one."],
             "care_points": ["Current details may change."],
             "source_list": ["source_001", "source_002"],

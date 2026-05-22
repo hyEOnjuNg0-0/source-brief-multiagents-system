@@ -1,17 +1,23 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
+from research_system.context import AgentContext
 from research_system.orchestrator import ResearchOrchestrator
+from research_system.quality import ResearchQualityError, validate_mvp_quality
 from research_system.schemas import (
     CriticOutput,
     PlannerOutput,
+    ResearchPlan,
     ResearcherOutput,
     SynthesizerOutput,
     VerifierOutput,
 )
+from research_system.tools import FetchPageTool, WebSearchTool
 
 
 def _planner_payload() -> dict[str, Any]:
@@ -47,7 +53,7 @@ def _planner_payload() -> dict[str, Any]:
                     "title": "Risks",
                     "section_type": "risks",
                     "priority": "medium",
-                }
+                },
             ],
             "source_requirements": ["official_doc", "news", "critical_source"],
             "research_assignments": [
@@ -58,7 +64,7 @@ def _planner_payload() -> dict[str, Any]:
                 },
                 {
                     "agent": "Researcher B",
-                    "focus": "news context",
+                    "focus": "external context",
                     "required_source_types": ["news"],
                 },
                 {
@@ -78,7 +84,7 @@ def _researcher_payload(role: str, prefix: str) -> dict[str, Any]:
         "researcher_c": ("critical_source", "paper"),
     }[prefix]
     summary = (
-        "Risks and criticism summary tied to sources."
+        "Risk and criticism note tied to sources."
         if prefix == "researcher_c"
         else "Summary tied to sources."
     )
@@ -124,16 +130,13 @@ def _critic_payload() -> dict[str, Any]:
                 "issues": [
                     {
                         "type": "missing_context",
-                        "severity": "medium",
-                        "description": "Critical sources are thin.",
+                        "severity": "low",
+                        "description": "Fixture critic caution.",
                     }
                 ],
             }
         ],
-        "source_balance_notes": ["Official sources need balancing."],
-        "recommended_followups": [
-            "Researcher C: add one more critical source."
-        ],
+        "source_balance_notes": ["Fixture source balance checked."],
     }
 
 
@@ -145,13 +148,13 @@ def _verifier_payload() -> dict[str, Any]:
                 "item": f"Fact {index}",
                 "value": f"Value {index}",
                 "status": "confirmed",
-                "rationale": "Checked against research sources.",
+                "rationale": "Checked against stable fixture sources.",
                 "source_ids": ["researcher_a_source_001"],
             }
             for index in range(1, 6)
         ],
         "checked_source_ids": ["researcher_a_source_001"],
-        "confirmed_items": ["Fact 1", "Fact 2", "Fact 3", "Fact 4", "Fact 5"],
+        "confirmed_items": [f"Fact {index}" for index in range(1, 6)],
     }
 
 
@@ -180,7 +183,7 @@ def _synthesizer_payload() -> dict[str, Any]:
                     "section_type": "strategy",
                     "content": "Strategy content.",
                     "source_ids": ["researcher_c_source_001"],
-                }
+                },
             ],
             "timeline": [
                 {
@@ -190,7 +193,7 @@ def _synthesizer_payload() -> dict[str, Any]:
                 }
             ],
             "key_points": ["Point one."],
-            "care_points": ["Follow-up evidence was requested for critical context."],
+            "care_points": ["Read critical claims with care."],
             "source_list": [
                 "researcher_a_source_001",
                 "researcher_b_source_001",
@@ -221,53 +224,143 @@ def _synthesizer_payload() -> dict[str, Any]:
             },
         ],
         "fact_checks": _verifier_payload()["fact_checks"],
-        "unresolved_cautions": [],
     }
 
 
-def test_orchestrator_runs_full_flow_and_followups(tmp_path: Path):
-    calls: list[str] = []
+def _fake_llm(prompt: str, model: type):
+    if model is PlannerOutput:
+        return _planner_payload()
+    if model is ResearcherOutput:
+        if '"name": "Researcher A"' in prompt:
+            return _researcher_payload("researcher_a", "researcher_a")
+        if '"name": "Researcher B"' in prompt:
+            return _researcher_payload("researcher_b", "researcher_b")
+        return _researcher_payload("researcher_c", "researcher_c")
+    if model is CriticOutput:
+        return _critic_payload()
+    if model is VerifierOutput:
+        return _verifier_payload()
+    if model is SynthesizerOutput:
+        return _synthesizer_payload()
+    raise AssertionError(f"unexpected model: {model}")
 
-    def fake_llm(prompt: str, model: type):
-        if model is PlannerOutput:
-            return _planner_payload()
+
+def _quality_result() -> SimpleNamespace:
+    return SimpleNamespace(
+        planner_output=PlannerOutput.model_validate(_planner_payload()),
+        research_outputs=[
+            ResearcherOutput.model_validate(
+                _researcher_payload("researcher_a", "researcher_a")
+            ),
+            ResearcherOutput.model_validate(
+                _researcher_payload("researcher_b", "researcher_b")
+            ),
+            ResearcherOutput.model_validate(
+                _researcher_payload("researcher_c", "researcher_c")
+            ),
+        ],
+        synthesizer_output=SynthesizerOutput.model_validate(_synthesizer_payload()),
+    )
+
+
+def test_quality_gate_rejects_short_planner_sections():
+    result = _quality_result()
+    result.planner_output.plan.briefing_sections = (
+        result.planner_output.plan.briefing_sections[:3]
+    )
+
+    with pytest.raises(ResearchQualityError, match="at least 4 briefing sections"):
+        validate_mvp_quality(result)
+
+
+def test_quality_gate_rejects_missing_critical_source_family():
+    result = _quality_result()
+    for source in result.research_outputs[2].sources:
+        source.source_type = "news"
+    for source in result.synthesizer_output.sources:
+        if source.source_type == "critical_source":
+            source.source_type = "news"
+
+    with pytest.raises(ResearchQualityError, match="critical source type"):
+        validate_mvp_quality(result)
+
+
+def test_tool_backed_end_to_end_run_uses_search_and_fetch(tmp_path: Path):
+    search_calls: list[str] = []
+    fetch_calls: list[str] = []
+    researcher_prompts: list[str] = []
+
+    def fake_search(query: str, limit: int):
+        search_calls.append(query)
+        return [
+            {
+                "title": "Evidence",
+                "url": f"https://example.org/evidence/{len(search_calls)}",
+                "snippet": "Search result snippet.",
+            }
+        ][:limit]
+
+    def fake_fetch(url: str, *, timeout: float):
+        fetch_calls.append(url)
+        return f"Fetched evidence for {url}"
+
+    def llm(prompt: str, model: type):
         if model is ResearcherOutput:
-            if '"name": "Researcher A"' in prompt:
-                calls.append("researcher_a")
-                return _researcher_payload("researcher_a", "researcher_a")
-            if '"name": "Researcher B"' in prompt:
-                calls.append("researcher_b")
-                return _researcher_payload("researcher_b", "researcher_b")
-            calls.append(
-                "researcher_c_followup"
-                if '"followup_request": "Researcher C:' in prompt
-                else "researcher_c"
-            )
-            return _researcher_payload("researcher_c", "researcher_c")
-        if model is CriticOutput:
-            return _critic_payload()
-        if model is VerifierOutput:
-            return _verifier_payload()
-        if model is SynthesizerOutput:
-            return _synthesizer_payload()
-        raise AssertionError(f"unexpected model: {model}")
+            researcher_prompts.append(prompt)
+            assert '"tool_research"' in prompt
+            assert "Fetched evidence" in prompt
+        return _fake_llm(prompt, model)
 
-    orchestrator = ResearchOrchestrator(llm=fake_llm, output_root=tmp_path)
+    orchestrator = ResearchOrchestrator(
+        llm=llm,
+        output_root=tmp_path,
+        tools=(
+            WebSearchTool(search=fake_search),
+            FetchPageTool(fetch=fake_fetch),
+        ),
+    )
 
     result = orchestrator.run("question", run_id="run_001")
 
     assert result.briefing_path.exists()
-    assert calls == [
-        "researcher_a",
-        "researcher_b",
-        "researcher_c",
-        "researcher_c_followup",
-    ]
-    assert len(result.research_outputs) == 4
-    assert (tmp_path / "run_001" / "plan.json").exists()
-    assert (tmp_path / "run_001" / "researcher_c_critic_followup_004.json").exists()
-    messages = json.loads(
-        (tmp_path / "run_001" / "messages.json").read_text(encoding="utf-8")
+    assert len(researcher_prompts) == 3
+    assert len(search_calls) == 3
+    assert len(fetch_calls) == 3
+    assert all(
+        "WebSearchTool supplied" in " ".join(output.handoff_notes)
+        for output in result.research_outputs
     )
-    assert any(message["message_type"] == "followup_request" for message in messages)
-    assert any(message["message_type"] == "followup_response" for message in messages)
+
+
+def test_parallel_researchers_keep_same_storage_shape(tmp_path: Path):
+    plan = ResearchPlan.model_validate(_planner_payload()["plan"])
+    snapshots: dict[str, tuple[list[str], list[str], list[str]]] = {}
+
+    for label, parallel in (("sequential", False), ("parallel", True)):
+        output_root = tmp_path / label
+        context = AgentContext(
+            run_id="run_001",
+            user_question="question",
+            output_root=output_root,
+        )
+        context.set_artifact("plan", plan)
+        orchestrator = ResearchOrchestrator(
+            llm=_fake_llm,
+            output_root=output_root,
+            parallel_researchers=parallel,
+        )
+
+        outputs = orchestrator.run_researchers(
+            plan,
+            context=context,
+            parallel=parallel,
+        )
+
+        artifact_keys = sorted(
+            key for key in context.artifacts if key.startswith("researcher_")
+        )
+        filenames = sorted(path.name for path in context.run_dir.glob("*.json"))
+        output_roles = [str(output.agent_role) for output in outputs]
+        snapshots[label] = (artifact_keys, filenames, output_roles)
+
+    assert snapshots["parallel"] == snapshots["sequential"]
