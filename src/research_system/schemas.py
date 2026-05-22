@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import AnyUrl, BaseModel, ConfigDict, Field, model_validator
 
@@ -38,6 +38,14 @@ class AgentRole(StrEnum):
     CRITIC = "critic"
     VERIFIER = "verifier"
     SYNTHESIZER = "synthesizer"
+
+
+class AgentMessageType(StrEnum):
+    HANDOFF = "handoff"
+    FOLLOWUP_REQUEST = "followup_request"
+    FOLLOWUP_RESPONSE = "followup_response"
+    NOTE = "note"
+    ERROR = "error"
 
 
 class BriefingSectionType(StrEnum):
@@ -94,6 +102,33 @@ class FactCheckStatus(StrEnum):
     CONFIRMED = "confirmed"
     NEEDS_CARE = "needs_care"
     CONFLICTING = "conflicting"
+
+
+class AgentTask(SchemaModel):
+    id: str = Field(..., min_length=1)
+    target_agent: str = Field(..., min_length=1)
+    description: str = Field(..., min_length=1)
+    payload: dict[str, Any] = Field(default_factory=dict)
+    created_by: str = Field(default="orchestrator", min_length=1)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class AgentMessage(SchemaModel):
+    id: str = Field(..., min_length=1)
+    from_agent: str = Field(..., min_length=1)
+    to_agent: str = Field(..., min_length=1)
+    message_type: AgentMessageType
+    content: str = Field(..., min_length=1)
+    related_task_id: str | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class AgentMemoryItem(SchemaModel):
+    id: str = Field(..., min_length=1)
+    agent_name: str = Field(..., min_length=1)
+    content: str = Field(..., min_length=1)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class ResearchScope(SchemaModel):

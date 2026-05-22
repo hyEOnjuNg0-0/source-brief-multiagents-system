@@ -1,7 +1,11 @@
 """Research system package."""
 
 from research_system.schemas import (
+    AgentMemoryItem,
+    AgentMessage,
+    AgentMessageType,
     AgentRole,
+    AgentTask,
     BriefingSection,
     BriefingSectionDraft,
     BriefingSectionSpec,
@@ -30,7 +34,11 @@ from research_system.schemas import (
 )
 
 __all__ = [
+    "AgentMemoryItem",
+    "AgentMessage",
+    "AgentMessageType",
     "AgentRole",
+    "AgentTask",
     "BriefingSection",
     "BriefingSectionDraft",
     "BriefingSectionSpec",
