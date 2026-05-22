@@ -16,6 +16,11 @@ from research_system.llm import (
     reset_llm_client,
     structured_ask_llm,
 )
+from research_system.orchestrator import (
+    OrchestratorResult,
+    ResearchOrchestrator,
+    default_research_tools,
+)
 from research_system.schemas import (
     AgentMemoryItem,
     AgentMessage,
@@ -77,6 +82,7 @@ __all__ = [
     "FetchPageTool",
     "FinalBriefing",
     "Priority",
+    "OrchestratorResult",
     "PlannerOutput",
     "PlannerAgent",
     "QualityIssue",
@@ -86,6 +92,7 @@ __all__ = [
     "ResearchAssignment",
     "ResearchDepth",
     "ResearcherAgent",
+    "ResearchOrchestrator",
     "ResearchNote",
     "ResearchPlan",
     "ResearcherOutput",
@@ -105,6 +112,7 @@ __all__ = [
     "briefing_to_markdown",
     "configure_llm_client",
     "create_default_researchers",
+    "default_research_tools",
     "reset_llm_client",
     "SaveArtifactTool",
     "structured_ask_llm",
