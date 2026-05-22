@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Generic, Mapping, Protocol, Sequence, TypeVar
 
+from research_system.llm import structured_ask_llm
 from research_system.schemas import (
     AgentMemoryItem,
     AgentRole,
@@ -34,7 +35,7 @@ class Agent(Generic[OutputT]):
     role: AgentRole
     prompt_path: Path
     output_model: type[OutputT]
-    llm: StructuredLLM
+    llm: StructuredLLM = structured_ask_llm
     tools: Sequence[Tool] = field(default_factory=tuple)
     memory: list[AgentMemoryItem] = field(default_factory=list)
 

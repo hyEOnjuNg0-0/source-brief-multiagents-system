@@ -1,6 +1,16 @@
 """Research system package."""
 
 from research_system.context import AgentContext
+from research_system.llm import (
+    LLMConfigurationError,
+    LLMError,
+    LLMResponseError,
+    ask_llm,
+    ask_llm_json,
+    configure_llm_client,
+    reset_llm_client,
+    structured_ask_llm,
+)
 from research_system.schemas import (
     AgentMemoryItem,
     AgentMessage,
@@ -41,6 +51,9 @@ __all__ = [
     "AgentMessageType",
     "AgentRole",
     "AgentTask",
+    "LLMConfigurationError",
+    "LLMError",
+    "LLMResponseError",
     "BriefingSection",
     "BriefingSectionDraft",
     "BriefingSectionSpec",
@@ -66,4 +79,9 @@ __all__ = [
     "SourceType",
     "TimelineEvent",
     "VerifierOutput",
+    "ask_llm",
+    "ask_llm_json",
+    "configure_llm_client",
+    "reset_llm_client",
+    "structured_ask_llm",
 ]
