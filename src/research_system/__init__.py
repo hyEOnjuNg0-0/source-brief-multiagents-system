@@ -21,6 +21,7 @@ from research_system.orchestrator import (
     ResearchOrchestrator,
     default_research_tools,
 )
+from research_system.quality import ResearchQualityError, validate_mvp_quality
 from research_system.schemas import (
     AgentMemoryItem,
     AgentMessage,
@@ -91,6 +92,7 @@ __all__ = [
     "Reliability",
     "ResearchAssignment",
     "ResearchDepth",
+    "ResearchQualityError",
     "ResearcherAgent",
     "ResearchOrchestrator",
     "ResearchNote",
@@ -116,4 +118,5 @@ __all__ = [
     "reset_llm_client",
     "SaveArtifactTool",
     "structured_ask_llm",
+    "validate_mvp_quality",
 ]

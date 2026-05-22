@@ -15,6 +15,7 @@ from research_system.agents.synthesizer import SynthesizerAgent
 from research_system.agents.verifier import VerifierAgent
 from research_system.context import AgentContext
 from research_system.llm import structured_ask_llm
+from research_system.quality import validate_mvp_quality
 from research_system.schemas import (
     AgentMessage,
     AgentMessageType,
@@ -135,10 +136,8 @@ class ResearchOrchestrator:
         self._set_research_artifacts(context, research_outputs)
 
         synthesizer_output = self.synthesizer.synthesize(context=context)
-        context.save_messages()
-        context.save_snapshot()
 
-        return OrchestratorResult(
+        result = OrchestratorResult(
             context=context,
             planner_output=planner_output,
             research_outputs=research_outputs,
@@ -148,6 +147,10 @@ class ResearchOrchestrator:
             run_dir=context.run_dir,
             briefing_path=context.run_dir / "briefing.md",
         )
+        validate_mvp_quality(result)
+        context.save_messages()
+        context.save_snapshot()
+        return result
 
     def run_researchers(
         self,
