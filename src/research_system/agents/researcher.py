@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from research_system.agents.base import Agent, StructuredLLM
 from research_system.context import AgentContext
@@ -14,7 +16,12 @@ from research_system.schemas import (
     ResearcherOutput,
     SourceType,
 )
-from research_system.tools import Tool
+from research_system.tools import (
+    FetchPageTool,
+    Tool,
+    ToolExecutionError,
+    WebSearchTool,
+)
 
 
 PROMPT_DIR = Path(__file__).resolve().parents[1] / "prompts"
@@ -148,7 +155,9 @@ class ResearcherAgent(Agent[ResearcherOutput]):
         task: AgentTask,
         context: AgentContext | None = None,
     ) -> ResearcherOutput:
+        method_notes = _attach_tool_research(self, task, context)
         output = super().run(task, context=context)
+        output.handoff_notes.extend(method_notes)
         _validate_researcher_output(self, output, task=task, context=context)
 
         if context is not None:
@@ -222,6 +231,135 @@ def _validate_researcher_output(
         raise ValueError(
             "Researcher C must include risk or criticism notes in its research output"
         )
+
+
+def _attach_tool_research(
+    agent: ResearcherAgent,
+    task: AgentTask,
+    context: AgentContext | None,
+) -> list[str]:
+    search_tool = _web_search_tool(agent.tools)
+    if search_tool is None or search_tool.search is None:
+        warning = "LLM-only mode: no WebSearchTool search backend is configured."
+        task.payload["tool_research_warning"] = warning
+        return [warning]
+
+    query = _build_search_query(task, context)
+    limit = int(task.payload.get("search_limit", 5))
+    try:
+        search_payload = json.loads(search_tool.run(query=query, limit=limit))
+    except Exception as exc:
+        warning = f"LLM-only mode: web search failed before research: {exc}"
+        task.payload["tool_research_warning"] = warning
+        return [warning]
+
+    results = list(search_payload.get("results", []))
+    tool_research: dict[str, Any] = {
+        "query": query,
+        "search_results": results,
+        "evidence_snippets": [],
+    }
+    method_notes = [f"WebSearchTool supplied {len(results)} search results."]
+
+    fetch_tool = _fetch_page_tool(agent.tools)
+    if fetch_tool is None or fetch_tool.fetch is None:
+        method_notes.append(
+            "FetchPageTool backend unavailable; search result pages were not fetched."
+        )
+    else:
+        snippets, fetch_notes = _fetch_evidence_snippets(fetch_tool, results)
+        tool_research["evidence_snippets"] = snippets
+        method_notes.extend(fetch_notes)
+
+    task.payload["tool_research"] = tool_research
+    return method_notes
+
+
+def _build_search_query(
+    task: AgentTask,
+    context: AgentContext | None,
+) -> str:
+    assignment = _assignment_from_task(task)
+    parts = [
+        context.user_question if context is not None else "",
+        str(task.payload.get("focus") or ""),
+    ]
+    if assignment is not None:
+        parts.append(assignment.focus)
+        parts.extend(
+            _source_type_value(item)
+            for item in assignment.required_source_types
+        )
+    return " ".join(part for part in parts if part).strip()
+
+
+def _fetch_evidence_snippets(
+    fetch_tool: FetchPageTool,
+    results: Sequence[Any],
+    *,
+    max_results: int = 3,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    snippets: list[dict[str, Any]] = []
+    notes: list[str] = []
+    for result in results[:max_results]:
+        url = _result_url(result)
+        if not url:
+            continue
+        try:
+            content = fetch_tool.run(url=url, max_chars=2_000)
+        except ToolExecutionError as exc:
+            notes.append(f"FetchPageTool could not fetch {url}: {exc}")
+            continue
+
+        snippets.append(
+            {
+                "url": url,
+                "title": _result_field(result, "title"),
+                "snippet": _compact_snippet(content),
+            }
+        )
+
+    notes.append(f"FetchPageTool supplied {len(snippets)} evidence snippets.")
+    return snippets, notes
+
+
+def _web_search_tool(tools: Sequence[Tool]) -> WebSearchTool | None:
+    for tool in tools:
+        if isinstance(tool, WebSearchTool):
+            return tool
+    return None
+
+
+def _fetch_page_tool(tools: Sequence[Tool]) -> FetchPageTool | None:
+    for tool in tools:
+        if isinstance(tool, FetchPageTool):
+            return tool
+    return None
+
+
+def _result_url(result: Any) -> str | None:
+    for field in ("url", "link", "href"):
+        value = _result_field(result, field)
+        if value:
+            return value
+    return None
+
+
+def _result_field(result: Any, field: str) -> str | None:
+    if isinstance(result, dict):
+        value = result.get(field)
+    else:
+        value = getattr(result, field, None)
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def _compact_snippet(content: str, *, max_chars: int = 1_000) -> str:
+    compact = " ".join(content.split())
+    if len(compact) <= max_chars:
+        return compact
+    return f"{compact[:max_chars].rstrip()}..."
 
 
 def _assignment_from_task(task: AgentTask) -> ResearchAssignment | None:
