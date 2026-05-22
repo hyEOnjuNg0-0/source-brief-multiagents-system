@@ -1,5 +1,6 @@
 """Research system package."""
 
+from research_system.agents.planner import PlannerAgent
 from research_system.context import AgentContext
 from research_system.llm import (
     LLMConfigurationError,
@@ -72,6 +73,7 @@ __all__ = [
     "FinalBriefing",
     "Priority",
     "PlannerOutput",
+    "PlannerAgent",
     "QualityIssue",
     "QualityIssueType",
     "QualityReview",
