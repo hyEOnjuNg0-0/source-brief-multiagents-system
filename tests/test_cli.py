@@ -5,7 +5,7 @@ from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
 
-from research_system.cli import _load_llm_backend, run_cli
+from research_system.cli import _load_dotenv, _load_llm_backend, run_cli
 from research_system.llm import LLMConfigurationError, reset_llm_client
 
 
@@ -96,3 +96,26 @@ def test_load_llm_backend_from_module_attribute(monkeypatch):
         assert _load_llm_backend("fake_llm_module:nested.backend") is backend
     finally:
         reset_llm_client()
+
+
+def test_load_dotenv_sets_missing_environment_values(tmp_path: Path, monkeypatch):
+    dotenv = tmp_path / ".env"
+    dotenv.write_text(
+        "\n".join(
+            [
+                "OPENAI_API_KEY='sk-test'",
+                "RESEARCH_SYSTEM_OPENAI_MODEL=gpt-test",
+                "EXISTING_VALUE=from_file",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("RESEARCH_SYSTEM_OPENAI_MODEL", raising=False)
+    monkeypatch.setenv("EXISTING_VALUE", "from_env")
+
+    _load_dotenv(dotenv)
+
+    assert __import__("os").environ["OPENAI_API_KEY"] == "sk-test"
+    assert __import__("os").environ["RESEARCH_SYSTEM_OPENAI_MODEL"] == "gpt-test"
+    assert __import__("os").environ["EXISTING_VALUE"] == "from_env"

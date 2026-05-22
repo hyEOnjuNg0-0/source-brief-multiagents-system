@@ -18,25 +18,24 @@ cd C:\research_system
 python -m pip install -e .
 ```
 
-OpenAI API 키를 설정합니다.
+`.env` 파일을 만듭니다.
 
 ```powershell
-$env:OPENAI_API_KEY="sk-..."
+Copy-Item .env.example .env
 ```
 
-기본 LLM 설정은 다음과 같습니다.
+그 다음 `.env` 파일을 열어서 `OPENAI_API_KEY` 값을 본인 키로 바꿉니다.
 
-```text
-model: gpt-5.5
-reasoning effort: high
-verbosity: high
+```env
+OPENAI_API_KEY=sk-여기에_본인_API_KEY
+RESEARCH_SYSTEM_OPENAI_MODEL=gpt-5.5
+RESEARCH_SYSTEM_OPENAI_REASONING_EFFORT=high
+RESEARCH_SYSTEM_OPENAI_VERBOSITY=high
 ```
 
-다른 모델을 쓰고 싶으면 이렇게 바꿀 수 있습니다.
+`.env` 파일은 git에 커밋하지 않습니다.
 
-```powershell
-$env:RESEARCH_SYSTEM_OPENAI_MODEL="gpt-5.2"
-```
+모델 접근 권한이 없다는 에러가 나오면 `.env`에서 `RESEARCH_SYSTEM_OPENAI_MODEL`만 접근 가능한 모델명으로 바꾸면 됩니다.
 
 ## 2. 자료조사 실행
 
@@ -105,14 +104,10 @@ No LLM client configured
 
 해결:
 
-```powershell
-$env:OPENAI_API_KEY="sk-..."
-```
+`.env` 파일에 `OPENAI_API_KEY=sk-...`가 들어 있는지 확인하세요.
 
 모델 접근 권한이 없다는 에러가 나오면:
 
-```powershell
-$env:RESEARCH_SYSTEM_OPENAI_MODEL="접근 가능한 모델명"
-```
+`.env` 파일에서 `RESEARCH_SYSTEM_OPENAI_MODEL` 값을 접근 가능한 모델명으로 바꾸세요.
 
 그 다음 다시 실행하면 됩니다.

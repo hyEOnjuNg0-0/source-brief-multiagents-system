@@ -70,6 +70,7 @@ def run_cli(
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
 ) -> int:
+    _load_dotenv()
     out = stdout or sys.stdout
     err = stderr or sys.stderr
     parser = build_parser()
@@ -123,6 +124,28 @@ def run_cli(
 
 def main(argv: Sequence[str] | None = None) -> int:
     return run_cli(argv)
+
+
+def _load_dotenv(path: Path | str = ".env") -> None:
+    dotenv_path = Path(path)
+    if not dotenv_path.exists():
+        return
+
+    for line in dotenv_path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        key = key.strip()
+        if not key or key in os.environ:
+            continue
+        os.environ[key] = _clean_env_value(value.strip())
+
+
+def _clean_env_value(value: str) -> str:
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+        return value[1:-1]
+    return value
 
 
 def _load_llm_backend(spec: str):
