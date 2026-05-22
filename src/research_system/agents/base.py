@@ -12,16 +12,9 @@ from research_system.schemas import (
     AgentTask,
     SchemaModel,
 )
+from research_system.tools import Tool
 
 OutputT = TypeVar("OutputT", bound=SchemaModel)
-
-
-class Tool(Protocol):
-    name: str
-    description: str
-
-    def run(self, **kwargs: Any) -> Any:
-        ...
 
 
 class StructuredLLM(Protocol):

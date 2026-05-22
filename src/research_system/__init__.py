@@ -43,6 +43,13 @@ from research_system.schemas import (
     TimelineEvent,
     VerifierOutput,
 )
+from research_system.tools import (
+    FetchPageTool,
+    SaveArtifactTool,
+    Tool,
+    ToolExecutionError,
+    WebSearchTool,
+)
 
 __all__ = [
     "AgentContext",
@@ -61,6 +68,7 @@ __all__ = [
     "CriticOutput",
     "FactCheck",
     "FactCheckStatus",
+    "FetchPageTool",
     "FinalBriefing",
     "Priority",
     "PlannerOutput",
@@ -78,10 +86,14 @@ __all__ = [
     "Source",
     "SourceType",
     "TimelineEvent",
+    "Tool",
+    "ToolExecutionError",
     "VerifierOutput",
+    "WebSearchTool",
     "ask_llm",
     "ask_llm_json",
     "configure_llm_client",
     "reset_llm_client",
+    "SaveArtifactTool",
     "structured_ask_llm",
 ]
