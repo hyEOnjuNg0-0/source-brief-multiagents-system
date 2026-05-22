@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -57,6 +58,7 @@ class ResearchOrchestrator:
         critic: CriticAgent | None = None,
         verifier: VerifierAgent | None = None,
         synthesizer: SynthesizerAgent | None = None,
+        parallel_researchers: bool = False,
     ) -> None:
         self.llm = llm
         self.output_root = Path(output_root)
@@ -68,6 +70,7 @@ class ResearchOrchestrator:
         self.critic = critic or CriticAgent(llm=llm)
         self.verifier = verifier or VerifierAgent(llm=llm)
         self.synthesizer = synthesizer or SynthesizerAgent(llm=llm)
+        self.parallel_researchers = parallel_researchers
         self._researchers_by_name = {
             researcher.name: researcher
             for researcher in self.researchers
@@ -104,6 +107,11 @@ class ResearchOrchestrator:
         research_outputs = self.run_researchers(
             planner_output.plan,
             context=context,
+            parallel=_setting_enabled(
+                context.settings,
+                "parallel_researchers",
+                self.parallel_researchers,
+            ),
         )
         self._set_research_artifacts(context, research_outputs)
 
@@ -157,11 +165,16 @@ class ResearchOrchestrator:
         plan: ResearchPlan,
         *,
         context: AgentContext,
+        parallel: bool | None = None,
     ) -> list[ResearcherOutput]:
         assignments = {
             assignment.agent: assignment
             for assignment in plan.research_assignments
         }
+        use_parallel = self.parallel_researchers if parallel is None else parallel
+        if use_parallel:
+            return self._run_researchers_parallel(plan, assignments, context=context)
+
         outputs: list[ResearcherOutput] = []
 
         for researcher in self.researchers:
@@ -173,6 +186,41 @@ class ResearchOrchestrator:
                 task_id=f"{_id_prefix(researcher.name)}_task_001",
             )
             outputs.append(output)
+            self._save_research_output(
+                context,
+                researcher=researcher,
+                output=output,
+            )
+        return outputs
+
+    def _run_researchers_parallel(
+        self,
+        plan: ResearchPlan,
+        assignments: Mapping[str, ResearchAssignment],
+        *,
+        context: AgentContext,
+    ) -> list[ResearcherOutput]:
+        outputs_by_name: dict[str, ResearcherOutput] = {}
+        max_workers = max(1, len(self.researchers))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(
+                    researcher.research,
+                    assignment=assignments.get(researcher.name),
+                    context=context.model_copy(deep=True),
+                    plan_id=plan.id,
+                    task_id=f"{_id_prefix(researcher.name)}_task_001",
+                ): researcher
+                for researcher in self.researchers
+            }
+            for future, researcher in futures.items():
+                outputs_by_name[researcher.name] = future.result()
+
+        outputs: list[ResearcherOutput] = []
+        for researcher in self.researchers:
+            output = outputs_by_name[researcher.name]
+            outputs.append(output)
+            context.set_artifact(_id_prefix(researcher.name), output)
             self._save_research_output(
                 context,
                 researcher=researcher,
@@ -288,6 +336,17 @@ def _plan_id(context: AgentContext) -> str | None:
     if isinstance(plan, ResearchPlan):
         return plan.id
     return None
+
+
+def _setting_enabled(
+    settings: Mapping[str, Any],
+    key: str,
+    default: bool = False,
+) -> bool:
+    value = settings.get(key, default)
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
 
 
 def _id_prefix(value: str) -> str:
